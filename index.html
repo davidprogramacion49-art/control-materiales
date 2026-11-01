@@ -621,17 +621,24 @@ renderAll();renderMaterialDetails();
 
 
 <script>
-// 1. Esperamos a que la página cargue por completo
+// 1. Aseguramos la conexión con tus credenciales de Supabase
+// Si ya las tienes inicializadas más arriba en tu archivo, puedes omitir estas dos líneas
+const SUPABASE_URL = "https://hpcbswwtfwwbjgrglzzk.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "sb_publishable_tHCAejR8H0hCMGlmVlSO7Q_M0g2E5s3";
+
+// Inicializamos el cliente si no se ha creado antes
+if (typeof supabase === 'undefined' || !supabase.auth) {
+    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// 2. Esperamos a que la página cargue por completo
 document.addEventListener('DOMContentLoaded', () => {
-    // Capturamos los elementos de tu diseño usando tus clases del CSS
     const launcher = document.querySelector('.ai-launcher');
     const panel = document.querySelector('.ai-panel');
     
-    // Buscamos o creamos dinámicamente las referencias del input, botón y contenedor de mensajes
-    // Esto asegura que funcione perfectamente con el marcado HTML que tengas dentro de .ai-panel
     if (panel) {
         const inputChat = panel.querySelector('input') || panel.querySelector('[type="text"]');
-        const botonEnviar = panel.querySelector('button:not(.close)') || panel.querySelector('.send-btn');
+        const botonEnviar = panel.querySelector('button:not(.close)') || panel.querySelector('.send-btn') || document.querySelector('.ai-panel button'); // Ajustado para capturar tu botón 'Enviar' dorado
         const contenedorMensajes = panel.querySelector('.messages') || panel.querySelector('div:nth-child(2)');
 
         // Función principal para procesar y enviar el mensaje a Supabase
@@ -657,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // D) Analizamos la data fresca devuelta por el motor de la base de datos
                 const respuestaFinal = analizarDatosEscolares(textoUsuario, data.contexto_sistema);
 
-                // E) Quitamos el indicador de carga y mostramos la respuesta final inteligible
+                // E) Quitamos el indicador de carga y mostramos la respuesta final
                 burbujaEspera.remove();
                 agregarBurbujaTexto(respuestaFinal, 'asistente');
 
@@ -673,7 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const query = prompt.toLowerCase();
 
             // Consulta de Inventario / Almacén / Existencias
-            if (query.includes('inventario') || query.includes('stock') || query.includes('almacen') || query.includes('existencia')) {
+            if (query.includes('inventario') || query.includes('stock') || query.includes('almacen') || query.includes('existencia') || query.includes('bajo')) {
                 if (!datos.inventario || datos.inventario.length === 0) {
                     return "📋 El almacén se encuentra vacío. No hay materiales registrados todavía.";
                 }
@@ -685,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Consulta de Alumnos Registrados
-            if (query.includes('alumno') || query.includes('estudiante') || query.includes('cuantos')) {
+            if (query.includes('alumno') || query.includes('estudiante') || query.includes('cuantos') || query.includes('registrados')) {
                 const total = datos.alumnos ? datos.alumnos.length : 0;
                 return `🏫 Actualmente el padrón escolar cuenta con **${total} alumnos registrados** en el sistema.`;
             }
@@ -743,17 +750,24 @@ document.addEventListener('DOMContentLoaded', () => {
             return p;
         }
 
-            // Evento para el botón de enviar
-            if (botonEnviar) botonEnviar.addEventListener('click', procesarChatEscolar);
+        // Buscamos tu botón de enviar "dorado" específico
+        const botonEnviarReal = Array.from(panel.querySelectorAll('button')).find(b => b.textContent.trim() === 'Enviar') || botonEnviar;
 
-            // Evento para enviar al presionar la tecla Enter
-            if (inputChat) {
-                inputChat.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') procesarChatEscolar();
-                });
-            }
+        // Evento para el botón de enviar
+        if (botonEnviarReal) botonEnviarReal.addEventListener('click', procesarChatEscolar);
+
+        // Evento para enviar al presionar la tecla Enter
+        if (inputChat) {
+            inputChat.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    procesarChatEscolar();
+                }
+            });
         }
-    });
+    }
+});
+
 </script>
 
 </body>

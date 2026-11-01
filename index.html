@@ -621,8 +621,140 @@ renderAll();renderMaterialDetails();
 
 
 <script>
-// El enlace del botón contiene directamente el PDF en formato Base64;
-// no requiere carpetas, archivos adicionales ni generar Blob con JavaScript.
+// 1. Esperamos a que la página cargue por completo
+document.addEventListener('DOMContentLoaded', () => {
+    // Capturamos los elementos de tu diseño usando tus clases del CSS
+    const launcher = document.querySelector('.ai-launcher');
+    const panel = document.querySelector('.ai-panel');
+    
+    // Buscamos o creamos dinámicamente las referencias del input, botón y contenedor de mensajes
+    // Esto asegura que funcione perfectamente con el marcado HTML que tengas dentro de .ai-panel
+    if (panel) {
+        const inputChat = panel.querySelector('input') || panel.querySelector('[type="text"]');
+        const botonEnviar = panel.querySelector('button:not(.close)') || panel.querySelector('.send-btn');
+        const contenedorMensajes = panel.querySelector('.messages') || panel.querySelector('div:nth-child(2)');
+
+        // Función principal para procesar y enviar el mensaje a Supabase
+        async function procesarChatEscolar() {
+            const textoUsuario = inputChat.value.trim();
+            if (!textoUsuario) return;
+
+            // A) Pintamos el mensaje del usuario en tu chat
+            agregarBurbujaTexto(textoUsuario, 'usuario');
+            inputChat.value = ''; // Limpiamos la caja
+
+            // B) Mostramos mensaje de espera temporal
+            const burbujaEspera = agregarBurbujaTexto('Buscando en los registros escolares...', 'sistema-espera');
+
+            try {
+                // C) Llamamos de forma directa a la función RPC 'consultar_asistente_ia' de tu Supabase
+                const { data, error } = await supabase.rpc('consultar_asistente_ia', {
+                    prompt_usuario: textoUsuario
+                });
+
+                if (error) throw error;
+
+                // D) Analizamos la data fresca devuelta por el motor de la base de datos
+                const respuestaFinal = analizarDatosEscolares(textoUsuario, data.contexto_sistema);
+
+                // E) Quitamos el indicador de carga y mostramos la respuesta final inteligible
+                burbujaEspera.remove();
+                agregarBurbujaTexto(respuestaFinal, 'asistente');
+
+            } catch (err) {
+                console.error("Error en la conexión con el asistente:", err);
+                burbujaEspera.remove();
+                agregarBurbujaTexto("Lo siento, no pude conectarme a la base de datos para consultar esa información.", 'error');
+            }
+        }
+
+        // Motor lógico del asistente que interpreta los datos reales de tus 3 tablas
+        function analizarDatosEscolares(prompt, datos) {
+            const query = prompt.toLowerCase();
+
+            // Consulta de Inventario / Almacén / Existencias
+            if (query.includes('inventario') || query.includes('stock') || query.includes('almacen') || query.includes('existencia')) {
+                if (!datos.inventario || datos.inventario.length === 0) {
+                    return "📋 El almacén se encuentra vacío. No hay materiales registrados todavía.";
+                }
+                let lista = "📋 **Inventario de Materiales Actual:**\n\n";
+                datos.inventario.forEach(item => {
+                    lista += `• **${item.articulo}**: ${item.existencia} piezas en existencia.\n`;
+                });
+                return lista;
+            }
+
+            // Consulta de Alumnos Registrados
+            if (query.includes('alumno') || query.includes('estudiante') || query.includes('cuantos')) {
+                const total = datos.alumnos ? datos.alumnos.length : 0;
+                return `🏫 Actualmente el padrón escolar cuenta con **${total} alumnos registrados** en el sistema.`;
+            }
+
+            // Consulta de Entregas y Materiales Pendientes
+            if (query.includes('pendiente') || query.includes('entrega') || query.includes('deben') || query.includes('rezago')) {
+                const pendientes = datos.entregas ? datos.entregas.filter(e => e.estado.toLowerCase() === 'pendiente') : [];
+                if (pendientes.length === 0) {
+                    return "✅ ¡Excelente! No se encuentran entregas marcadas como 'Pendiente' en el sistema escolar.";
+                }
+                let listaPendientes = `⚠️ **Se encontraron ${pendientes.length} entregas pendientes:**\n\n`;
+                pendientes.forEach(e => {
+                    listaPendientes += `• **${e.nombre}** (${e.grado}° "${e.grupo}"): Tiene pendiente la entrega de: _${e.materiales || 'Materiales generales'}_.\n`;
+                });
+                return listaPendientes;
+            }
+
+            // Saludo o respuesta genérica instructiva
+            return "¡Hola! 👋 Soy tu asistente escolar. Puedo ayudarte a consultar el estado de la escuela en tiempo real. Intenta preguntarme cosas como:\n\n" +
+                   "• _¿Cuántos alumnos hay registrados?_\n" +
+                   "• _¿Cuál es el stock actual del inventario?_\n" +
+                   "• _Muéstrame las entregas pendientes_";
+        }
+
+        // Función auxiliar para renderizar los mensajes respetando la estructura interna del chat
+        function agregarBurbujaTexto(texto, remitente) {
+            const p = document.createElement('p');
+            p.style.margin = '8px 0';
+            p.style.padding = '10px 14px';
+            p.style.borderRadius = '12px';
+            p.style.fontSize = '14px';
+            p.style.lineHeight = '1.4';
+            p.style.fontFamily = 'Arial, sans-serif';
+            
+            // Aplicamos estilos limpios que combinan con tu paleta de colores crema y azul
+            if (remitente === 'usuario') {
+                p.style.background = '#173b63';
+                p.style.color = '#fff';
+                p.style.alignSelf = 'flex-end';
+                p.style.marginLeft = '20px';
+            } else {
+                p.style.background = '#eee4cf';
+                p.style.color = '#263442';
+                p.style.alignSelf = 'flex-start';
+                p.style.marginRight = '20px';
+            }
+
+            // Cambiar saltos de línea por <br> para conservar el orden estructurado de las listas
+            p.innerHTML = texto.replace(/\n/g, '<br>');
+            
+            if (contenedorMensajes) {
+                contenedorMensajes.appendChild(p);
+                contenedorMensajes.scrollTop = contenedorMensajes.scrollHeight;
+            }
+            return p;
+        }
+
+            // Evento para el botón de enviar
+            if (botonEnviar) botonEnviar.addEventListener('click', procesarChatEscolar);
+
+            // Evento para enviar al presionar la tecla Enter
+            if (inputChat) {
+                inputChat.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') procesarChatEscolar();
+                });
+            }
+        }
+    });
+
 </script>
 
 </body>

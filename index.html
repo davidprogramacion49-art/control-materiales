@@ -108,6 +108,27 @@
 .bibliography-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border:1px solid var(--gold);border-radius:10px;background:var(--blue);color:#fff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;transition:background .2s,transform .2s;box-shadow:0 4px 10px rgba(23,59,99,.12)}
 .bibliography-link:hover{background:var(--blue2);transform:translateY(-1px)}
 
+
+/* Inicio de sesión */
+.login-screen{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,var(--blue),var(--blue2));overflow:auto}
+.login-screen.show{display:flex}
+.login-card{width:min(420px,100%);background:var(--cream2);border:2px solid var(--gold2);border-radius:20px;padding:30px 28px;box-shadow:0 25px 70px rgba(0,0,0,.35);text-align:center}
+.login-logo{width:120px;height:92px;margin:0 auto 14px;border-radius:14px;overflow:hidden;background:#fff;border:2px solid var(--gold2)}
+.login-logo img{width:100%;height:100%;object-fit:cover;display:block}
+.login-card h2{margin:0 0 4px;color:var(--blue);font-size:21px;line-height:1.25}
+.login-card .sub{font-family:Arial,sans-serif;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.login-card .field{text-align:left;margin-top:14px}
+.login-error{min-height:20px;margin:12px 0 0;color:var(--danger);font-family:Arial,sans-serif;font-size:13px;line-height:1.4}
+.login-btn{width:100%;margin-top:10px}
+.login-btn:disabled{opacity:.6;cursor:wait}
+.login-note{font-family:Arial,sans-serif;font-size:11px;color:var(--muted);margin:16px 0 0;line-height:1.5}
+
+/* Usuario en la barra lateral */
+.sidebar{overflow-y:auto}
+.userbox{margin-top:22px;padding-top:16px;border-top:1px solid rgba(255,255,255,.24);font-family:Arial,sans-serif;font-size:12px;color:#dce7f1;text-align:center}
+.userbox span{display:block;word-break:break-all;margin-bottom:10px}
+.userbox button{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:bold}
+.userbox button:hover{background:rgba(255,255,255,.12)}
 </style>
  </head>
  <body>
@@ -128,6 +149,7 @@
      <button data-page="inventario"><span class="icon">▤</span>Inventario</button>
      <button data-page="reportes"><span class="icon">◈</span>Reportes</button>
    </nav>
+   <div class="userbox"><span id="userEmail"></span><button type="button" id="logoutBtn">Cerrar sesión</button></div>
  </aside>
  <br>
  <main class="main">
@@ -196,7 +218,7 @@
      <div class="card" style="margin-top:20px">
        <div class="form-grid" style="margin-bottom:15px">
          <div class="field"><label>Buscar en inventario</label><input id="inventorySearch" placeholder="Ej. talla 28, paquete #9..." oninput="renderInventory()"></div>
-         <div class="field"><label>Filtrar categoría</label><select id="inventoryFilter" onchange="renderInventory()"><option value="">Todas</option>${materials.map(x=>`<option>${x}</option>`).join("")}</select></div>
+         <div class="field"><label>Filtrar categoría</label><select id="inventoryFilter" onchange="renderInventory()"><option value="">Todas</option><option>Zapatos</option><option>Uniforme</option><option>Útiles</option><option>Libros</option></select></div>
        </div>
        <div class="table-wrap"><table class="table"><thead><tr><th>Categoría</th><th>Detalle</th><th>Existencia</th><th>Mínimo</th><th>Estado</th><th></th></tr></thead><tbody id="inventoryTable"></tbody></table></div></div>
    </section>
@@ -224,11 +246,11 @@
  </button>
  <section class="ai-panel" id="aiPanel" aria-label="Asistente de IA">
    <div class="ai-head">
-     <div><strong>Asistente de IA</strong><small>Busca en los registros o pregunta sobre cualquier tema</small></div>
+     <div><strong>Asistente de IA</strong><small>Consulta alumnos, entregas e inventario</small></div>
      <button class="ai-close" id="aiClose" aria-label="Cerrar asistente">×</button>
    </div>
    <div class="ai-messages" id="aiMessages">
-     <div class="ai-msg bot">Hola 👋 Puedo buscar en los registros de alumnos, entregas e inventario. Si el servicio de IA está conectado, también puedo responder preguntas generales y buscar información en la web.</div>
+     <div class="ai-msg bot">Hola 👋 Puedo buscar en los registros de alumnos, entregas e inventario. Pregúntame, por ejemplo, cuántos alumnos hay registrados o qué materiales tienen poco inventario.</div>
    </div>
    <div class="ai-suggestions">
      <button class="ai-suggestion" data-question="¿Cuántos alumnos están registrados?">Alumnos registrados</button>
@@ -248,365 +270,581 @@
  </div>
  <div class="toast" id="toast"></div>
  <br>
+ 
+ <!-- Pantalla de inicio de sesión (Supabase Auth) -->
+ <div class="login-screen show" id="loginScreen" role="dialog" aria-modal="true" aria-label="Inicio de sesión">
+   <div class="login-card">
+     <div class="login-logo"><img id="loginLogo" alt="Escudo de la escuela"></div>
+     <h2>Escuela Secundaria<br>“Martín José Urrutia Malagón”</h2>
+     <p class="sub">Control de materiales</p>
+     <form id="loginForm">
+       <div class="field"><label for="loginEmail">Correo</label><input id="loginEmail" type="email" autocomplete="username" required></div>
+       <div class="field"><label for="loginPass">Contraseña</label><input id="loginPass" type="password" autocomplete="current-password" required></div>
+       <p class="login-error" id="loginError" role="alert"></p>
+       <button class="btn btn-primary login-btn" id="loginBtn" type="submit">Entrar</button>
+     </form>
+     <p class="login-note">Acceso solo para personal autorizado. Los datos de los alumnos están protegidos.</p>
+   </div>
+ </div>
+
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.109.0/dist/umd/supabase.js"></script>
  <script>
- const KEY="mjum_control_materiales_v1";
- const materials=["Zapatos","Uniforme","Útiles","Libros"];
- const uniformSizes=["12","14","16","28","30","32","34","36","38","40","42","44"];
- const womenShoes=["19","20","21","22","23","24","25","26","27","28"];
- const menShoes=["21","22","23","24","25","26","27","28","29","30"];
- let db=JSON.parse(localStorage.getItem(KEY)||'{"students":[],"deliveries":[],"inventory":[]}');
- db.students ||= []; db.deliveries ||= []; db.inventory ||= [];
- 
- const $=id=>document.getElementById(id);
- function persist(){localStorage.setItem(KEY,JSON.stringify(db));renderAll()}
- function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
- function showToast(msg){$("toast").textContent=msg;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),2600)}
- function showPage(page){
-   document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
-   $("page-"+page).classList.add("active");
-   document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
-   const titles={inicio:"Inicio",alumnos:"Alumnos","entrega":"Nueva entrega",historial:"Historial",inventario:"Inventario",reportes:"Reportes"};
-   $("pageTitle").textContent=titles[page]; window.scrollTo({top:0,behavior:"smooth"});
-   $("sidebar").classList.remove("open");
-   renderAll();
- }
- document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
- $("mobileToggle").onclick=()=>$("sidebar").classList.toggle("open");
- $("today").textContent=new Intl.DateTimeFormat("es-MX",{dateStyle:"full"}).format(new Date());
- 
- function renderAll(){
-   $("statStudents").textContent=db.students.length;
-   $("statComplete").textContent=db.deliveries.filter(x=>x.status==="Completa").length;
-   $("statPending").textContent=db.deliveries.filter(x=>x.status==="Pendiente"||x.status==="Parcial").length;
-   $("statStock").textContent=db.inventory.reduce((a,x)=>a+Number(x.qty||0),0);
-   renderStudents(); renderStudentSelect(); renderHistory(); renderInventory(); renderReports();
- }
- function openModal(title,body){$("modalTitle").textContent=title;$("modalBody").innerHTML=body;$("modal").classList.add("show")}
- function closeModal(){$("modal").classList.remove("show")}
- $("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal()});
- 
- function openStudentForm(){
-  openModal("Registrar alumno",`
+// ===================== CONEXIÓN CON SUPABASE =====================
+// La URL va SIN "/rest/v1/". La llave "publishable" es pública por diseño:
+// los datos están protegidos por las reglas (RLS) de la base de datos.
+// NUNCA pongas aquí la llave "service_role".
+const SUPABASE_URL = "https://hpcbswwtfwwbjgrglzzk.supabase.co";
+const SUPABASE_KEY = "sb_publishable_tHCAejR8H0hCMGlmVlSO7Q_M0g2E5s3";
+let sb = null;
+
+// ===================== DATOS BASE =====================
+const materials = ["Zapatos", "Uniforme", "Útiles", "Libros"];
+const uniformSizes = ["12", "14", "16", "28", "30", "32", "34", "36", "38", "40", "42", "44"];
+const womenShoes = ["19", "20", "21", "22", "23", "24", "25", "26", "27", "28"];
+const menShoes = ["21", "22", "23", "24", "25", "26", "27", "28", "29", "30"];
+
+// Copia en memoria de lo que viene de Supabase (no se guarda en el navegador).
+let db = { students: [], deliveries: [], inventory: [] };
+let ocupado = false;
+let atendiendo = null;
+
+const $ = id => document.getElementById(id);
+function esc(v) { return String(v ?? "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])) }
+function showToast(msg) { $("toast").textContent = msg; $("toast").classList.add("show"); setTimeout(() => $("toast").classList.remove("show"), 3200) }
+function falla(msg, err) { console.error(msg, err); showToast(msg) }
+function hoy() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
+function lista(texto) { return String(texto || "").split(",").map(x => x.trim()).filter(Boolean) }
+function etiquetaInventario(detalle) {
+  const t = String(detalle ?? "");
+  if (t.includes("|")) { const [a, b] = t.split("|"); return `${a} — talla ${b}` }
+  return t || "General";
+}
+function inventoryLabel(x) { return etiquetaInventario(x.detail) }
+
+// Conversión entre las columnas de Supabase y los nombres que usa la página.
+const mapAlumno = r => ({ id: r.id, name: r.nombre, grade: r.grado, group: r.grupo });
+const mapInv = r => ({ id: r.id, cat: r.categoria, detail: r.detalle, qty: Number(r.existencia || 0), min: Number(r.minimo || 0) });
+const mapEntrega = r => ({ id: r.id, studentId: r.alumno_id, date: r.fecha, status: r.estado, materials: lista(r.materiales), pending: lista(r.pendientes), details: r.detalles || {} });
+
+function ordenarAlumnos() { db.students.sort((a, b) => a.name.localeCompare(b.name, "es")) }
+function ordenarInventario() {
+  db.inventory.sort((a, b) => (materials.indexOf(a.cat) - materials.indexOf(b.cat)) || String(a.detail).localeCompare(String(b.detail), "es", { numeric: true }));
+}
+
+// ===================== LECTURA DE SUPABASE =====================
+// Supabase entrega máximo 1000 filas por consulta; por eso se pide por páginas.
+async function traerTodo(tabla, orden) {
+  const filas = [], paso = 1000;
+  for (let desde = 0; ; desde += paso) {
+    let q = sb.from(tabla).select("*");
+    orden.forEach(o => { q = q.order(o[0], { ascending: o[1] }) });
+    q = q.order("id", { ascending: true });
+    const { data, error } = await q.range(desde, desde + paso - 1);
+    if (error) throw error;
+    filas.push(...data);
+    if (data.length < paso) break;
+  }
+  return filas;
+}
+async function cargarInventario() {
+  const filas = await traerTodo("inventario_materiales", [["categoria", true], ["detalle", true]]);
+  db.inventory = filas.map(mapInv); ordenarInventario();
+}
+async function cargarTodo() {
+  const [a, e] = await Promise.all([
+    traerTodo("alumnos", [["nombre", true]]),
+    traerTodo("entregas_material", [["fecha", false], ["created_at", false]])
+  ]);
+  db.students = a.map(mapAlumno); ordenarAlumnos();
+  db.deliveries = e.map(mapEntrega);
+  await cargarInventario();
+}
+
+// ===================== NAVEGACIÓN =====================
+function showPage(page) {
+  document.querySelectorAll(".page").forEach(x => x.classList.remove("active"));
+  $("page-" + page).classList.add("active");
+  document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("active", x.dataset.page === page));
+  const titles = { inicio: "Inicio", alumnos: "Alumnos", "entrega": "Nueva entrega", historial: "Historial", inventario: "Inventario", reportes: "Reportes" };
+  $("pageTitle").textContent = titles[page]; window.scrollTo({ top: 0, behavior: "smooth" });
+  $("sidebar").classList.remove("open");
+  renderAll();
+}
+document.querySelectorAll(".nav button").forEach(b => b.onclick = () => showPage(b.dataset.page));
+$("mobileToggle").onclick = () => $("sidebar").classList.toggle("open");
+$("today").textContent = new Intl.DateTimeFormat("es-MX", { dateStyle: "full" }).format(new Date());
+
+function renderAll() {
+  $("statStudents").textContent = db.students.length;
+  $("statComplete").textContent = db.deliveries.filter(x => x.status === "Completa").length;
+  $("statPending").textContent = db.deliveries.filter(x => x.status === "Pendiente" || x.status === "Parcial").length;
+  $("statStock").textContent = db.inventory.reduce((a, x) => a + Number(x.qty || 0), 0);
+  renderStudents(); renderStudentSelect(); renderHistory(); renderInventory(); renderReports();
+}
+function openModal(title, body) { $("modalTitle").textContent = title; $("modalBody").innerHTML = body; $("modal").classList.add("show") }
+function closeModal() { $("modal").classList.remove("show") }
+$("modal").addEventListener("click", e => { if (e.target === $("modal")) closeModal() });
+
+// ===================== ALUMNOS =====================
+function openStudentForm() {
+  openModal("Registrar alumno", `
   <div class="form-grid">
    <div class="field full"><label>Nombre completo</label><input id="fName" placeholder="Ej. María López Hernández"></div>
    <div class="field"><label>Grado</label><select id="fGrade"><option>1ero</option><option>2do</option><option>3ero</option></select></div>
-   <div class="field"><label>Grupo</label><select id="fGroup">${"a,b,c,d,e,f,g,h,i".split(",").map(x=>`<option>${x.toUpperCase()}</option>`).join("")}</select></div>
+   <div class="field"><label>Grupo</label><select id="fGroup">${"a,b,c,d,e,f,g,h,i".split(",").map(x => `<option>${x.toUpperCase()}</option>`).join("")}</select></div>
   </div><div class="actions"><button class="btn btn-light" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveStudent()">Guardar</button></div>`);
- }
- function saveStudent(){
-  const name=$("fName").value.trim(); if(!name)return showToast("Escribe el nombre del alumno.");
-  db.students.push({id:Date.now().toString(),name,grade:$("fGrade").value,group:$("fGroup").value});
-  persist();closeModal();showToast("Alumno registrado correctamente.");
- }
- function renderStudents(){
-  const t=$("studentsTable"); if(!db.students.length){t.innerHTML=`<tr><td colspan="5" class="empty">Aún no hay alumnos registrados.</td></tr>`;return}
-  t.innerHTML=db.students.map(s=>{
-   const n=db.deliveries.filter(d=>d.studentId===s.id).length;
-   return `<tr><td><b>${esc(s.name)}</b></td><td>${s.grade}</td><td>${s.group}</td><td>${n}</td><td><button class="btn btn-light" onclick="quickDelivery('${s.id}')">Entregar</button> <button class="btn btn-danger" onclick="deleteStudent('${s.id}')">Eliminar</button></td></tr>`}).join("");
- }
- function deleteStudent(id){if(!confirm("¿Eliminar este alumno y sus registros de entrega?"))return;db.students=db.students.filter(x=>x.id!==id);db.deliveries=db.deliveries.filter(x=>x.studentId!==id);persist();showToast("Alumno eliminado.")}
- function renderStudentSelect(){
-  filterDeliveryStudents();
- }
- function filterDeliveryStudents(){
-  const select=$("deliveryStudent"), search=($("deliverySearch")?.value||"").trim().toLowerCase(), group=$("deliveryGroup")?.value||"";
-  if(!select)return;
-  const old=select.value;
-  const matches=db.students.filter(x=>(!search||x.name.toLowerCase().includes(search))&&(!group||x.group===group));
-  select.innerHTML=matches.length?`<option value="">Selecciona un alumno...</option>`+matches.map(x=>`<option value="${x.id}">${esc(x.name)} — ${x.grade} ${x.group}</option>`).join(""):`<option value="">Sin coincidencias</option>`;
-  if(matches.some(x=>x.id===old))select.value=old;
-  if($("deliveryMatches"))$("deliveryMatches").textContent=matches.length?`${matches.length} alumno(s) encontrado(s). Puedes refinar la búsqueda con el grupo.`:"No hay alumnos que coincidan con los filtros.";
- }
- function quickDelivery(id){showPage("entrega");setTimeout(()=>$("deliveryStudent").value=id,50)}
- $("deliveryDate").value=new Date().toISOString().slice(0,10);
- document.querySelectorAll(".material").forEach(c=>c.addEventListener("change",renderMaterialDetails));
- function renderMaterialDetails(){
-  let out="";
-  if(document.querySelector('.material[value="Zapatos"]').checked)out+=`<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Zapatos: género</label><select id="shoeGender"><option value="Mujer">Mujer</option><option value="Hombre">Hombre</option></select></div><div class="field"><label>Talla</label><select id="shoeSize"></select></div></div>`;
-  if(document.querySelector('.material[value="Uniforme"]').checked)out+=`<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Uniforme</label><select id="uniformGender"><option>Femenil</option><option>Varonil</option></select></div><div class="field"><label>Talla</label><select id="uniformSize">${uniformSizes.map(x=>`<option>${x}</option>`).join("")}</select></div></div>`;
-  if(document.querySelector('.material[value="Útiles"]').checked)out+=`<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Paquete de útiles</label><select id="schoolPack"><option>Paquete #9</option><option>Paquete #6</option></select></div><div></div></div>`;
-  if(document.querySelector('.material[value="Libros"]').checked)out+=`<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Grado de libros</label><select id="bookGrade"><option>1ero</option><option>2do</option><option>3ero</option></select></div><div></div></div>`;
-  $("materialDetails").innerHTML=out;
-  const g=$("shoeGender"), z=$("shoeSize");
-  if(g){const fill=()=>z.innerHTML=(g.value==="Mujer"?womenShoes:menShoes).map(x=>`<option>${x}</option>`).join("");g.onchange=fill;fill()}
- }
- function clearDelivery(){document.querySelectorAll(".material").forEach(x=>x.checked=false);$("materialDetails").innerHTML="";$("deliveryStatus").value="Completa"}
- function findInventory(cat, detailKey){
-  const exact=db.inventory.find(x=>x.cat===cat&&x.detailKey===detailKey);
-  if(exact)return exact;
-  // Compatibility with older inventory records.
-  return db.inventory.find(x=>x.cat===cat&&x.detail===detailKey);
- }
- function decreaseInventory(cat, detailKey, qty){
-  const item=findInventory(cat,detailKey);
-  if(!item)return {ok:false,message:`No hay existencia registrada para ${cat}: ${detailKey}.`};
-  if(Number(item.qty)<qty)return {ok:false,message:`No hay suficiente existencia de ${cat}: ${inventoryLabel(item)}. Disponible: ${item.qty}.`};
-  item.qty=Number(item.qty)-qty;
-  return {ok:true};
- }
- function saveDelivery(){
-  const sid=$("deliveryStudent").value;if(!sid)return showToast("Selecciona un alumno.");
-  const chosen=[...document.querySelectorAll(".material:checked")].map(x=>x.value);
-  if(!chosen.length && $("deliveryStatus").value!=="Pendiente")return showToast("Selecciona al menos un material.");
- 
-  const details={};
-  if(chosen.includes("Zapatos")){
-    details.Zapatos={genero:$("shoeGender").value,talla:$("shoeSize").value};
-  }
-  if(chosen.includes("Uniforme")){
-    details.Uniforme={tipo:$("uniformGender").value,talla:$("uniformSize").value};
-  }
-  if(chosen.includes("Útiles")){
-    details.Útiles={paquete:$("schoolPack").value};
-  }
-  if(chosen.includes("Libros")){
-    details.Libros={grado:$("bookGrade").value};
-  }
- 
-  // Validate inventory BEFORE changing anything.
-  const inventoryActions=[];
-  if(chosen.includes("Zapatos")){
-    inventoryActions.push(["Zapatos",`${details.Zapatos.genero}|${details.Zapatos.talla}`,1]);
-  }
-  if(chosen.includes("Uniforme")){
-    inventoryActions.push(["Uniforme",`${details.Uniforme.tipo}|${details.Uniforme.talla}`,1]);
-  }
-  if(chosen.includes("Útiles")){
-    inventoryActions.push(["Útiles",details.Útiles.paquete,1]);
-  }
-  if(chosen.includes("Libros")){
-    inventoryActions.push(["Libros",details.Libros.grado,1]);
-  }
- 
-  for(const action of inventoryActions){
-    const item=findInventory(action[0],action[1]);
-    if(!item){
-      return showToast(`No existe en inventario: ${action[0]} — ${action[1].replace("|"," — ")}.`);
+}
+async function saveStudent() {
+  if (ocupado) return;
+  const name = $("fName").value.trim().replace(/\s+/g, " ");
+  if (!name) return showToast("Escribe el nombre del alumno.");
+  ocupado = true;
+  try {
+    const { data, error } = await sb.from("alumnos").insert({ nombre: name, grado: $("fGrade").value, grupo: $("fGroup").value }).select().single();
+    if (error) return falla("No se pudo registrar al alumno. Intenta de nuevo.", error);
+    db.students.push(mapAlumno(data)); ordenarAlumnos();
+    renderAll(); closeModal(); showToast("Alumno registrado correctamente.");
+  } finally { ocupado = false }
+}
+function renderStudents() {
+  const t = $("studentsTable");
+  if (!db.students.length) { t.innerHTML = `<tr><td colspan="5" class="empty">Aún no hay alumnos registrados.</td></tr>`; return }
+  const conteo = new Map();
+  db.deliveries.forEach(d => conteo.set(d.studentId, (conteo.get(d.studentId) || 0) + 1));
+  t.innerHTML = db.students.map(s => {
+    const n = conteo.get(s.id) || 0;
+    return `<tr><td><b>${esc(s.name)}</b></td><td>${esc(s.grade)}</td><td>${esc(s.group)}</td><td>${n}</td><td><button class="btn btn-light" onclick="quickDelivery('${s.id}')">Entregar</button> <button class="btn btn-danger" onclick="deleteStudent('${s.id}')">Eliminar</button></td></tr>`
+  }).join("");
+}
+async function deleteStudent(id) {
+  if (ocupado) return;
+  if (!confirm("¿Eliminar este alumno y sus registros de entrega?")) return;
+  ocupado = true;
+  try {
+    const { error } = await sb.from("alumnos").delete().eq("id", id);
+    if (error) return falla("No se pudo eliminar al alumno.", error);
+    db.students = db.students.filter(x => x.id !== id);
+    db.deliveries = db.deliveries.filter(x => x.studentId !== id);
+    renderAll(); showToast("Alumno eliminado.");
+  } finally { ocupado = false }
+}
+function renderStudentSelect() { filterDeliveryStudents() }
+function filterDeliveryStudents() {
+  const select = $("deliveryStudent"), search = ($("deliverySearch")?.value || "").trim().toLowerCase(), group = $("deliveryGroup")?.value || "";
+  if (!select) return;
+  const old = select.value;
+  const matches = db.students.filter(x => (!search || x.name.toLowerCase().includes(search)) && (!group || x.group === group));
+  select.innerHTML = matches.length ? `<option value="">Selecciona un alumno...</option>` + matches.map(x => `<option value="${x.id}">${esc(x.name)} — ${esc(x.grade)} ${esc(x.group)}</option>`).join("") : `<option value="">Sin coincidencias</option>`;
+  if (matches.some(x => x.id === old)) select.value = old;
+  if ($("deliveryMatches")) $("deliveryMatches").textContent = matches.length ? `${matches.length} alumno(s) encontrado(s). Puedes refinar la búsqueda con el grupo.` : "No hay alumnos que coincidan con los filtros.";
+}
+function quickDelivery(id) { showPage("entrega"); setTimeout(() => $("deliveryStudent").value = id, 50) }
+
+// ===================== NUEVA ENTREGA =====================
+$("deliveryDate").value = hoy();
+document.querySelectorAll(".material").forEach(c => c.addEventListener("change", renderMaterialDetails));
+function renderMaterialDetails() {
+  let out = "";
+  if (document.querySelector('.material[value="Zapatos"]').checked) out += `<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Zapatos: género</label><select id="shoeGender"><option value="Mujer">Mujer</option><option value="Hombre">Hombre</option></select></div><div class="field"><label>Talla</label><select id="shoeSize"></select></div></div>`;
+  if (document.querySelector('.material[value="Uniforme"]').checked) out += `<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Uniforme</label><select id="uniformGender"><option>Femenil</option><option>Varonil</option></select></div><div class="field"><label>Talla</label><select id="uniformSize">${uniformSizes.map(x => `<option>${x}</option>`).join("")}</select></div></div>`;
+  if (document.querySelector('.material[value="Útiles"]').checked) out += `<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Paquete de útiles</label><select id="schoolPack"><option>Paquete #9</option><option>Paquete #6</option></select></div><div></div></div>`;
+  if (document.querySelector('.material[value="Libros"]').checked) out += `<div class="form-grid card" style="margin-top:12px"><div class="field"><label>Grado de libros</label><select id="bookGrade"><option>1ero</option><option>2do</option><option>3ero</option></select></div><div></div></div>`;
+  $("materialDetails").innerHTML = out;
+  const g = $("shoeGender"), z = $("shoeSize");
+  if (g) { const fill = () => z.innerHTML = (g.value === "Mujer" ? womenShoes : menShoes).map(x => `<option>${x}</option>`).join(""); g.onchange = fill; fill() }
+}
+function clearDelivery() { document.querySelectorAll(".material").forEach(x => x.checked = false); $("materialDetails").innerHTML = ""; $("deliveryStatus").value = "Completa" }
+
+function findInventory(cat, detailKey) { return db.inventory.find(x => x.cat === cat && x.detail === detailKey) }
+
+// Descuenta existencias en Supabase. Cada descuento solo se aplica si la existencia
+// no cambió mientras tanto (así dos personas no gastan la misma pieza dos veces).
+async function descontarInventario(acciones) {
+  const aplicadas = [];
+  for (const [cat, key, qty] of acciones) {
+    const item = findInventory(cat, key);
+    if (!item) { await revertirInventario(aplicadas); return { ok: false, message: `No existe en inventario: ${cat} — ${etiquetaInventario(key)}.` } }
+    if (item.qty < qty) { await revertirInventario(aplicadas); return { ok: false, message: `Existencia insuficiente: ${cat} — ${inventoryLabel(item)}. Disponible: ${item.qty}.` } }
+    const { data, error } = await sb.from("inventario_materiales").update({ existencia: item.qty - qty }).eq("id", item.id).eq("existencia", item.qty).select("id");
+    if (error || !data || !data.length) {
+      await revertirInventario(aplicadas);
+      try { await cargarInventario() } catch (e) { }
+      return { ok: false, message: error ? "No se pudo actualizar el inventario. Intenta de nuevo." : "El inventario cambió mientras guardabas. Revisa las existencias e intenta de nuevo." };
     }
-    if(Number(item.qty)<action[2]){
-      return showToast(`Existencia insuficiente: ${action[0]} — ${inventoryLabel(item)}. Disponible: ${item.qty}.`);
+    aplicadas.push({ item, prev: item.qty, qty });
+    item.qty = item.qty - qty;
+  }
+  return { ok: true, applied: aplicadas };
+}
+async function revertirInventario(aplicadas) {
+  for (const a of [...aplicadas].reverse()) {
+    await sb.from("inventario_materiales").update({ existencia: a.prev }).eq("id", a.item.id).eq("existencia", a.prev - a.qty);
+    a.item.qty = a.prev;
+  }
+}
+
+async function saveDelivery() {
+  if (ocupado) return;
+  const sid = $("deliveryStudent").value; if (!sid) return showToast("Selecciona un alumno.");
+  const chosen = [...document.querySelectorAll(".material:checked")].map(x => x.value);
+  if (!chosen.length && $("deliveryStatus").value !== "Pendiente") return showToast("Selecciona al menos un material.");
+
+  const details = {};
+  if (chosen.includes("Zapatos")) details.Zapatos = { genero: $("shoeGender").value, talla: $("shoeSize").value };
+  if (chosen.includes("Uniforme")) details.Uniforme = { tipo: $("uniformGender").value, talla: $("uniformSize").value };
+  if (chosen.includes("Útiles")) details["Útiles"] = { paquete: $("schoolPack").value };
+  if (chosen.includes("Libros")) details.Libros = { grado: $("bookGrade").value };
+
+  const acciones = [];
+  if (chosen.includes("Zapatos")) acciones.push(["Zapatos", `${details.Zapatos.genero}|${details.Zapatos.talla}`, 1]);
+  if (chosen.includes("Uniforme")) acciones.push(["Uniforme", `${details.Uniforme.tipo}|${details.Uniforme.talla}`, 1]);
+  if (chosen.includes("Útiles")) acciones.push(["Útiles", details["Útiles"].paquete, 1]);
+  if (chosen.includes("Libros")) acciones.push(["Libros", details.Libros.grado, 1]);
+
+  // Se revisa el inventario ANTES de cambiar nada.
+  for (const a of acciones) {
+    const item = findInventory(a[0], a[1]);
+    if (!item) return showToast(`No existe en inventario: ${a[0]} — ${etiquetaInventario(a[1])}.`);
+    if (item.qty < a[2]) return showToast(`Existencia insuficiente: ${a[0]} — ${inventoryLabel(item)}. Disponible: ${item.qty}.`);
+  }
+
+  const missing = materials.filter(x => !chosen.includes(x));
+  let status = $("deliveryStatus").value;
+  if (!missing.length) status = "Completa"; else if (!chosen.length) status = "Pendiente"; else if (status === "Completa") status = "Parcial";
+
+  ocupado = true;
+  try {
+    const r = await descontarInventario(acciones);
+    if (!r.ok) return showToast(r.message);
+    const { data, error } = await sb.from("entregas_material").insert({
+      alumno_id: sid, fecha: $("deliveryDate").value || hoy(), estado: status,
+      materiales: chosen.join(", "), pendientes: missing.join(", "), detalles: details
+    }).select().single();
+    if (error) {
+      await revertirInventario(r.applied);
+      return falla("No se pudo guardar la entrega. No se descontó nada del inventario.", error);
     }
-  }
- 
-  // Deduct the delivered units from inventory.
-  for(const action of inventoryActions) decreaseInventory(action[0],action[1],action[2]);
- 
-  const missing=materials.filter(x=>!chosen.includes(x));
-  let status=$("deliveryStatus").value;
-  if(!missing.length)status="Completa"; else if(!chosen.length)status="Pendiente"; else if(status==="Completa")status="Parcial";
- 
-  db.deliveries.unshift({
-    id:Date.now().toString(),
-    studentId:sid,
-    date:$("deliveryDate").value,
-    materials:chosen,
-    details,
-    status,
-    pending:missing
+    db.deliveries.unshift(mapEntrega(data));
+    try { await cargarInventario() } catch (e) { }
+    clearDelivery(); renderAll();
+    showToast("Entrega registrada y existencias actualizadas.");
+    showPage("historial");
+  } finally { ocupado = false }
+}
+
+// ===================== HISTORIAL =====================
+function renderHistory() {
+  const t = $("historyTable"); if (!db.deliveries.length) { t.innerHTML = `<tr><td colspan="6" class="empty">No hay entregas registradas.</td></tr>`; return }
+  const alumnos = new Map(db.students.map(s => [s.id, s]));
+  t.innerHTML = db.deliveries.map(d => {
+    const s = alumnos.get(d.studentId);
+    return `<tr><td>${esc(d.date)}</td><td>${esc(s?.name || "Alumno eliminado")}</td><td>${s ? esc(s.grade) + " / " + esc(s.group) : "—"}</td><td>${d.materials.length ? esc(d.materials.join(", ")) : "Ninguno"}</td><td><span class="badge ${d.status === "Completa" ? "complete" : d.status === "Parcial" ? "partial" : "pending"}">${esc(d.status)}</span></td><td><button class="btn btn-light" onclick="viewDelivery('${d.id}')">Ver</button> ${d.status !== "Completa" ? `<button class="btn btn-gold" onclick="attendPending('${d.id}')">Atender</button>` : ""} <button class="btn btn-danger" onclick="deleteDelivery('${d.id}')">×</button></td></tr>`
+  }).join("");
+}
+function viewDelivery(id) {
+  const d = db.deliveries.find(x => x.id === id); if (!d) return;
+  const s = db.students.find(x => x.id === d.studentId);
+  openModal("Detalle de entrega", `<p><b>Alumno:</b> ${esc(s?.name)}</p><p><b>Grado y grupo:</b> ${esc(s?.grade)} ${esc(s?.group)}</p><p><b>Fecha:</b> ${esc(d.date)}</p><p><b>Material:</b> ${esc(d.materials.join(", ")) || "Ninguno"}</p><p><b>Pendiente:</b> ${esc(d.pending.join(", ")) || "Ninguno"}</p><div class="actions"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>`);
+}
+function attendPending(id) {
+  const d = db.deliveries.find(x => x.id === id); if (!d) return;
+  const options = d.pending.map(x => `<div class="check"><label><input type="checkbox" class="attend" value="${esc(x)}"> ${esc(x)}</label></div>`).join("");
+  openModal("Atender material pendiente", `<p style="font-family:Arial;color:var(--muted)">Selecciona el material que ahora se entrega al alumno.</p><div class="checks">${options}</div><div class="actions"><button class="btn btn-light" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveAttendance('${id}')">Registrar</button></div>`);
+}
+function saveAttendance(id) {
+  const add = [...document.querySelectorAll(".attend:checked")].map(x => x.value);
+  if (!add.length) return showToast("Selecciona al menos un material.");
+  openPendingMaterialDetails(id, add);
+}
+function openPendingMaterialDetails(id, add) {
+  atendiendo = { id, add };
+  let out = '<p style="font-family:Arial;color:var(--muted)">Indica las características del material que vas a entregar.</p><div class="form-grid">';
+  add.forEach(m => {
+    if (m === "Zapatos") out += `<div class="field full"><label>Zapatos — género</label><select id="attShoeGender"><option>Mujer</option><option>Hombre</option></select></div><div class="field full"><label>Zapatos — talla</label><select id="attShoeSize"></select></div>`;
+    if (m === "Uniforme") out += `<div class="field full"><label>Uniforme — tipo</label><select id="attUniformGender"><option>Femenil</option><option>Varonil</option></select></div><div class="field full"><label>Uniforme — talla</label><select id="attUniformSize">${uniformSizes.map(x => `<option>${x}</option>`).join("")}</select></div>`;
+    if (m === "Útiles") out += `<div class="field full"><label>Útiles — paquete</label><select id="attPack"><option>Paquete #9</option><option>Paquete #6</option></select></div>`;
+    if (m === "Libros") out += `<div class="field full"><label>Libros — grado</label><select id="attBookGrade"><option>1ero</option><option>2do</option><option>3ero</option></select></div>`;
   });
-  persist();
-  clearDelivery();
-  showToast("Entrega registrada y existencias actualizadas.");
-  showPage("historial");
- }
- function renderHistory(){
-  const t=$("historyTable");if(!db.deliveries.length){t.innerHTML=`<tr><td colspan="6" class="empty">No hay entregas registradas.</td></tr>`;return}
-  t.innerHTML=db.deliveries.map(d=>{const s=db.students.find(x=>x.id===d.studentId);return `<tr><td>${d.date}</td><td>${esc(s?.name||"Alumno eliminado")}</td><td>${s?s.grade+" / "+s.group:"—"}</td><td>${d.materials.length?d.materials.join(", "):"Ninguno"}</td><td><span class="badge ${d.status==="Completa"?"complete":d.status==="Parcial"?"partial":"pending"}">${d.status}</span></td><td><button class="btn btn-light" onclick="viewDelivery('${d.id}')">Ver</button> ${d.status!=="Completa"?`<button class="btn btn-gold" onclick="attendPending('${d.id}')">Atender</button>`:""} <button class="btn btn-danger" onclick="deleteDelivery('${d.id}')">×</button></td></tr>`}).join("");
- }
- function viewDelivery(id){const d=db.deliveries.find(x=>x.id===id),s=db.students.find(x=>x.id===d.studentId);openModal("Detalle de entrega",`<p><b>Alumno:</b> ${esc(s?.name)}</p><p><b>Grado y grupo:</b> ${s?.grade} ${s?.group}</p><p><b>Fecha:</b> ${d.date}</p><p><b>Material:</b> ${d.materials.join(", ")||"Ninguno"}</p><p><b>Pendiente:</b> ${d.pending?.join(", ")||"Ninguno"}</p><div class="actions"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>`)}
- function attendPending(id){
-  const d=db.deliveries.find(x=>x.id===id);if(!d)return;
-  const options=(d.pending||[]).map(x=>`<div class="check"><label><input type="checkbox" class="attend" value="${x}"> ${x}</label></div>`).join("");
-  openModal("Atender material pendiente",`<p style="font-family:Arial;color:var(--muted)">Selecciona el material que ahora se entrega al alumno.</p><div class="checks">${options}</div><div class="actions"><button class="btn btn-light" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveAttendance('${id}')">Registrar</button></div>`);
- }
- function saveAttendance(id){
-  const d=db.deliveries.find(x=>x.id===id);
-  const add=[...document.querySelectorAll(".attend:checked")].map(x=>x.value);
-  if(!add.length)return showToast("Selecciona al menos un material.");
- 
-  // For pending materials, ask for the required characteristics before deducting.
-  openPendingMaterialDetails(id,add);
- }
- function openPendingMaterialDetails(id,add){
-  let out='<p style="font-family:Arial;color:var(--muted)">Indica las características del material que vas a entregar.</p><div class="form-grid">';
-  add.forEach((m,i)=>{
-    if(m==="Zapatos") out+=`<div class="field full"><label>Zapatos — género</label><select id="attShoeGender"><option>Mujer</option><option>Hombre</option></select></div><div class="field full"><label>Zapatos — talla</label><select id="attShoeSize"></select></div>`;
-    if(m==="Uniforme") out+=`<div class="field full"><label>Uniforme — tipo</label><select id="attUniformGender"><option>Femenil</option><option>Varonil</option></select></div><div class="field full"><label>Uniforme — talla</label><select id="attUniformSize">${uniformSizes.map(x=>`<option>${x}</option>`).join("")}</select></div>`;
-    if(m==="Útiles") out+=`<div class="field full"><label>Útiles — paquete</label><select id="attPack"><option>Paquete #9</option><option>Paquete #6</option></select></div>`;
-    if(m==="Libros") out+=`<div class="field full"><label>Libros — grado</label><select id="attBookGrade"><option>1ero</option><option>2do</option><option>3ero</option></select></div>`;
-  });
-  out+=`</div><div class="actions"><button class="btn btn-light" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmPendingAttendance('${id}',${JSON.stringify(add).replace(/</g,"&lt;")})">Registrar entrega</button></div>`;
-  $("modalBody").innerHTML=out;
-  if(add.includes("Zapatos")){
-    const g=$("attShoeGender"),z=$("attShoeSize");
-    const fill=()=>z.innerHTML=(g.value==="Mujer"?womenShoes:menShoes).map(x=>`<option>${x}</option>`).join("");
-    g.onchange=fill;fill();
+  out += `</div><div class="actions"><button class="btn btn-light" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmPendingAttendance()">Registrar entrega</button></div>`;
+  $("modalBody").innerHTML = out;
+  if (add.includes("Zapatos")) {
+    const g = $("attShoeGender"), z = $("attShoeSize");
+    const fill = () => z.innerHTML = (g.value === "Mujer" ? womenShoes : menShoes).map(x => `<option>${x}</option>`).join("");
+    g.onchange = fill; fill();
   }
- }
- function confirmPendingAttendance(id,add){
-  const d=db.deliveries.find(x=>x.id===id);
-  const details=d.details||{};
-  const actions=[];
-  add.forEach(m=>{
-    if(m==="Zapatos"){details.Zapatos={genero:$("attShoeGender").value,talla:$("attShoeSize").value};actions.push(["Zapatos",`${details.Zapatos.genero}|${details.Zapatos.talla}`])}
-    if(m==="Uniforme"){details.Uniforme={tipo:$("attUniformGender").value,talla:$("attUniformSize").value};actions.push(["Uniforme",`${details.Uniforme.tipo}|${details.Uniforme.talla}`])}
-    if(m==="Útiles"){details.Útiles={paquete:$("attPack").value};actions.push(["Útiles",details.Útiles.paquete])}
-    if(m==="Libros"){details.Libros={grado:$("attBookGrade").value};actions.push(["Libros",details.Libros.grado])}
+}
+async function confirmPendingAttendance() {
+  if (ocupado || !atendiendo) return;
+  const { id, add } = atendiendo;
+  const d = db.deliveries.find(x => x.id === id); if (!d) return;
+  const details = { ...(d.details || {}) };
+  const acciones = [];
+  add.forEach(m => {
+    if (m === "Zapatos") { details.Zapatos = { genero: $("attShoeGender").value, talla: $("attShoeSize").value }; acciones.push(["Zapatos", `${details.Zapatos.genero}|${details.Zapatos.talla}`, 1]) }
+    if (m === "Uniforme") { details.Uniforme = { tipo: $("attUniformGender").value, talla: $("attUniformSize").value }; acciones.push(["Uniforme", `${details.Uniforme.tipo}|${details.Uniforme.talla}`, 1]) }
+    if (m === "Útiles") { details["Útiles"] = { paquete: $("attPack").value }; acciones.push(["Útiles", details["Útiles"].paquete, 1]) }
+    if (m === "Libros") { details.Libros = { grado: $("attBookGrade").value }; acciones.push(["Libros", details.Libros.grado, 1]) }
   });
-  for(const [cat,key] of actions){
-    const item=findInventory(cat,key);
-    if(!item)return showToast(`No existe en inventario: ${cat} — ${key.replace("|"," — ")}.`);
-    if(Number(item.qty)<1)return showToast(`Existencia insuficiente: ${cat} — ${inventoryLabel(item)}.`);
-  }
-  for(const [cat,key] of actions)decreaseInventory(cat,key,1);
-  d.details=details;
-  d.materials=[...new Set([...d.materials,...add])];
-  d.pending=materials.filter(x=>!d.materials.includes(x));
-  d.status=d.pending.length?(d.materials.length?"Parcial":"Pendiente"):"Completa";
-  persist();closeModal();showToast("Entrega pendiente completada y existencias actualizadas.");
- }
- function deleteDelivery(id){if(!confirm("¿Eliminar esta entrega?"))return;db.deliveries=db.deliveries.filter(x=>x.id!==id);persist();showToast("Entrega eliminada.")}
- 
- function openInventoryForm(){
-  openModal("Agregar existencias al inventario",`
+  ocupado = true;
+  try {
+    const r = await descontarInventario(acciones);
+    if (!r.ok) return showToast(r.message);
+    const nuevos = [...new Set([...d.materials, ...add])];
+    const pendientes = materials.filter(x => !nuevos.includes(x));
+    const status = pendientes.length ? (nuevos.length ? "Parcial" : "Pendiente") : "Completa";
+    const { error } = await sb.from("entregas_material").update({ materiales: nuevos.join(", "), pendientes: pendientes.join(", "), estado: status, detalles: details }).eq("id", id);
+    if (error) {
+      await revertirInventario(r.applied);
+      return falla("No se pudo completar la entrega. No se descontó nada del inventario.", error);
+    }
+    Object.assign(d, { materials: nuevos, pending: pendientes, status, details });
+    try { await cargarInventario() } catch (e) { }
+    atendiendo = null; renderAll(); closeModal();
+    showToast("Entrega pendiente completada y existencias actualizadas.");
+  } finally { ocupado = false }
+}
+async function deleteDelivery(id) {
+  if (ocupado) return;
+  if (!confirm("¿Eliminar esta entrega?")) return;
+  ocupado = true;
+  try {
+    const { error } = await sb.from("entregas_material").delete().eq("id", id);
+    if (error) return falla("No se pudo eliminar la entrega.", error);
+    db.deliveries = db.deliveries.filter(x => x.id !== id);
+    renderAll(); showToast("Entrega eliminada.");
+  } finally { ocupado = false }
+}
+
+// ===================== INVENTARIO =====================
+function openInventoryForm() {
+  openModal("Agregar existencias al inventario", `
   <div class="form-grid">
-   <div class="field"><label>Material</label><select id="iCat" onchange="updateInventoryOptions()">${materials.map(x=>`<option>${x}</option>`).join("")}</select></div>
+   <div class="field"><label>Material</label><select id="iCat" onchange="updateInventoryOptions()">${materials.map(x => `<option>${x}</option>`).join("")}</select></div>
    <div class="field"><label>Presentación / detalle</label><select id="iDetail"></select></div>
    <div class="field" id="iExtraWrap"><label>Característica</label><select id="iExtra"></select></div>
-   <div class="field"><label>Cantidad a agregar</label><input id="iQty" type="number" min="1" value="1"></div>
-   <div class="field"><label>Stock mínimo</label><input id="iMin" type="number" min="0" value="1"></div>
+   <div class="field"><label>Cantidad a agregar</label><input id="iQty" type="number" min="1" step="1" value="1"></div>
+   <div class="field"><label>Stock mínimo</label><input id="iMin" type="number" min="0" step="1" value="1"></div>
   </div>
   <p style="font-family:Arial;color:var(--muted);font-size:13px;margin-top:15px">El sistema acumulará la cantidad en la existencia correspondiente. Por ejemplo: Zapatos → Hombre → talla 28.</p>
   <div class="actions"><button class="btn btn-light" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveInventory()">Agregar existencias</button></div>`);
   updateInventoryOptions();
- }
- function updateInventoryOptions(){
-  const cat=$("iCat"),detail=$("iDetail"),extra=$("iExtra"),wrap=$("iExtraWrap");
-  if(!cat)return;
-  if(cat.value==="Zapatos"){
-    detail.innerHTML=`<option value="Mujer">Mujer</option><option value="Hombre">Hombre</option>`;
-    wrap.style.display="block"; extra.innerHTML=(detail.value==="Mujer"?womenShoes:menShoes).map(x=>`<option>${x}</option>`).join("");
-    detail.onchange=()=>extra.innerHTML=(detail.value==="Mujer"?womenShoes:menShoes).map(x=>`<option>${x}</option>`).join("");
-  }else if(cat.value==="Uniforme"){
-    detail.innerHTML=`<option value="Femenil">Femenil</option><option value="Varonil">Varonil</option>`;
-    wrap.style.display="block"; extra.innerHTML=uniformSizes.map(x=>`<option>${x}</option>`).join("");
-  }else if(cat.value==="Útiles"){
-    detail.innerHTML=`<option>Paquete #9</option><option>Paquete #6</option>`; wrap.style.display="none";
-  }else{
-    detail.innerHTML=`<option>1ero</option><option>2do</option><option>3ero</option>`; wrap.style.display="none";
+}
+function updateInventoryOptions() {
+  const cat = $("iCat"), detail = $("iDetail"), extra = $("iExtra"), wrap = $("iExtraWrap");
+  if (!cat) return;
+  if (cat.value === "Zapatos") {
+    detail.innerHTML = `<option value="Mujer">Mujer</option><option value="Hombre">Hombre</option>`;
+    wrap.style.display = "block"; extra.innerHTML = (detail.value === "Mujer" ? womenShoes : menShoes).map(x => `<option>${x}</option>`).join("");
+    detail.onchange = () => extra.innerHTML = (detail.value === "Mujer" ? womenShoes : menShoes).map(x => `<option>${x}</option>`).join("");
+  } else if (cat.value === "Uniforme") {
+    detail.innerHTML = `<option value="Femenil">Femenil</option><option value="Varonil">Varonil</option>`;
+    wrap.style.display = "block"; extra.innerHTML = uniformSizes.map(x => `<option>${x}</option>`).join("");
+    detail.onchange = null;
+  } else if (cat.value === "Útiles") {
+    detail.innerHTML = `<option>Paquete #9</option><option>Paquete #6</option>`; wrap.style.display = "none"; detail.onchange = null;
+  } else {
+    detail.innerHTML = `<option>1ero</option><option>2do</option><option>3ero</option>`; wrap.style.display = "none"; detail.onchange = null;
   }
- }
- function saveInventory(){
-  const cat=$("iCat").value, detail=$("iDetail").value, qty=Number($("iQty").value), min=Number($("iMin").value);
-  const extra=($("iExtraWrap").style.display!=="none")?$("iExtra").value:"";
-  if(qty<1)return showToast("La cantidad debe ser mayor que cero.");
-  let keyDetail=detail, label=detail;
-  if(cat==="Zapatos"){keyDetail=`${detail}|${extra}`;label=`${detail} — talla ${extra}`}
-  if(cat==="Uniforme"){keyDetail=`${detail}|${extra}`;label=`${detail} — talla ${extra}`}
-  const same=db.inventory.find(x=>x.cat===cat&&x.detailKey===keyDetail);
-  if(same){same.qty+=qty;same.min=min}
-  else db.inventory.push({id:Date.now().toString(),cat,detail:keyDetail,label,qty,min});
-  persist();closeModal();showToast(`Se agregaron ${qty} existencias de ${cat}.`);
- }
- function inventoryLabel(x){
-  if(x.label)return x.label;
-  return x.detail||"General";
- }
- function renderInventory(){
-  const counts=Object.fromEntries(materials.map(x=>[x,0]));
-  db.inventory.forEach(x=>counts[x.cat]=(counts[x.cat]||0)+Number(x.qty||0));
-  $("inventoryGrid").innerHTML=materials.map(x=>`<div class="card inventory-item"><h4>${x}</h4><div class="stock">${counts[x]} existencias</div></div>`).join("");
-  const search=($("inventorySearch")?.value||"").toLowerCase().trim(), filter=$("inventoryFilter")?.value||"";
-  const rows=db.inventory.filter(x=>(!filter||x.cat===filter)&&(!search||x.cat.toLowerCase().includes(search)||inventoryLabel(x).toLowerCase().includes(search)));
-  $("inventoryTable").innerHTML=rows.length?rows.map(x=>`<tr><td>${x.cat}</td><td><b>${esc(inventoryLabel(x))}</b></td><td><b>${x.qty}</b></td><td>${x.min}</td><td>${x.qty<=x.min?'<span class="badge pending">Stock bajo</span>':'<span class="badge complete">Disponible</span>'}</td><td><button class="btn btn-danger" onclick="deleteInventory('${x.id}')">Eliminar</button></td></tr>`).join(""):`<tr><td colspan="6" class="empty">${db.inventory.length?"No hay coincidencias.":"No hay materiales en inventario."}</td></tr>`;
- }
- function deleteInventory(id){db.inventory=db.inventory.filter(x=>x.id!==id);persist();showToast("Material eliminado.")}
- function renderReports(){
-  const complete=db.deliveries.filter(x=>x.status==="Completa").length,partial=db.deliveries.filter(x=>x.status==="Parcial").length,pending=db.deliveries.filter(x=>x.status==="Pendiente").length;
-  $("repStudents").textContent=db.students.length;$("repComplete").textContent=complete;$("repPartial").textContent=partial;$("repPending").textContent=pending;
-  const counts=Object.fromEntries(materials.map(x=>[x,0]));db.deliveries.forEach(d=>d.materials.forEach(m=>counts[m]++));
-  $("materialReport").innerHTML=materials.map(x=>`<p style="font-family:Arial;display:flex;justify-content:space-between;border-bottom:1px solid #eadfc9;padding:9px 0"><span>${x}</span><b>${counts[x]}</b></p>`).join("");
-  const grades=["1ero","2do","3ero"];$("gradeReport").innerHTML=grades.map(g=>`<p style="font-family:Arial;display:flex;justify-content:space-between;border-bottom:1px solid #eadfc9;padding:9px 0"><span>${g}</span><b>${db.students.filter(x=>x.grade===g).length}</b></p>`).join("");
- }
-renderAll();renderMaterialDetails();
- 
- // ===== Asistente IA: búsqueda local + IA externa opcional =====
- // La búsqueda de alumnos, entregas e inventario se procesa en este navegador.
- // Para preguntas generales con IA y búsqueda web, instala api/assistant.php en el servidor.
- const AI_ENDPOINT = "api/assistant.php";
- const aiLauncher=$("aiLauncher"), aiPanel=$("aiPanel"), aiClose=$("aiClose"), aiForm=$("aiForm"), aiInput=$("aiInput"), aiMessages=$("aiMessages"), aiSend=$("aiSend");
- function aiOpen(){aiPanel.classList.add("show");setTimeout(()=>aiInput.focus(),80)}
- function aiClosePanel(){aiPanel.classList.remove("show")}
- function aiAddMessage(text,type="bot"){
-   const el=document.createElement("div"); el.className=`ai-msg ${type}`; el.textContent=text; aiMessages.appendChild(el); aiMessages.scrollTop=aiMessages.scrollHeight; return el;
- }
- function aiNormalize(value){return String(value??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9#\s-]/g," ").replace(/\s+/g," ").trim()}
- function aiContext(){
-   const low=db.inventory.filter(x=>Number(x.qty||0)<=Number(x.min||0)).map(x=>`${x.cat}: ${inventoryLabel(x)} (${x.qty} disponibles, mínimo ${x.min})`);
-   return {alumnos:db.students.length,entregas:db.deliveries.length,pendientes:db.deliveries.filter(x=>x.status==="Pendiente"||x.status==="Parcial").length,completas:db.deliveries.filter(x=>x.status==="Completa").length,parciales:db.deliveries.filter(x=>x.status==="Parcial").length,existencias:db.inventory.reduce((a,x)=>a+Number(x.qty||0),0),stock_bajo:low};
- }
- function aiIsDataQuestion(q){return /alumn|estudiant|entreg|inventario|existencia|stock|material|grupo|grado|historial|reporte|pendient|parcial|complet|talla|paquete|uniforme|zapato|util|libro|registrad|busca|buscar|quien|quienes|recibio|recibieron|fecha|cuantos|cuantas|cuanto|cuanta/.test(aiNormalize(q))}
- function aiRecords(){
-   const records=[];
-   db.students.forEach(s=>{
-     const ds=db.deliveries.filter(d=>d.studentId===s.id);
-     records.push({type:"Alumno",text:`Alumno ${s.name}, grado ${s.grade}, grupo ${s.group}, total de entregas ${ds.length}`});
-     ds.forEach(d=>records.push({type:"Entrega",text:`Entrega de ${s.name}, grado ${s.grade}, grupo ${s.group}, fecha ${d.date||"sin fecha"}, estado ${d.status}, materiales ${((d.materials||[]).join(", "))||"ninguno"}, pendientes ${((d.pending||[]).join(", "))||"ninguno"}, detalles ${JSON.stringify(d.details||{})}`}));
-   });
-   db.deliveries.filter(d=>!db.students.some(s=>s.id===d.studentId)).forEach(d=>records.push({type:"Entrega",text:`Entrega sin alumno vinculado, fecha ${d.date||"sin fecha"}, estado ${d.status}, materiales ${(d.materials||[]).join(", ")}, pendientes ${(d.pending||[]).join(", ")}`}));
-   db.inventory.forEach(x=>records.push({type:"Inventario",text:`Inventario ${x.cat}, ${inventoryLabel(x)}, existencia ${x.qty}, mínimo ${x.min}, estado ${Number(x.qty)<=Number(x.min)?"stock bajo":"disponible"}`}));
-   return records;
- }
- function aiLocalAnswer(q){
-   const t=aiNormalize(q), c=aiContext();
-   let m=t.match(/(?:alumnos?|estudiantes?).{0,35}?(1ero|primero|2do|segundo|3ero|tercero)(?:.{0,20}?(?:grupo|salon)\s*([a-i]))?/);
-   if(m){const g=({primero:"1ero",segundo:"2do",tercero:"3ero"})[m[1]]||m[1];const group=m[2]?.toUpperCase();const n=db.students.filter(x=>x.grade===g&&(!group||x.group===group)).length;return `Hay ${n} alumno(s) de ${g}${group?` del grupo ${group}`:""}.`;}
-   if(/cuantos|cuantas|total|numero/.test(t)&&/alumn|estudiant|registrad/.test(t))return `Actualmente hay ${c.alumnos} alumno(s) registrado(s).`;
-   if(/cuantos|cuantas|total|numero/.test(t)&&/entreg/.test(t)&&/pendient|parcial/.test(t))return `Hay ${c.pendientes} entrega(s) pendiente(s) o parcial(es): ${db.deliveries.filter(x=>x.status==="Pendiente").length} pendiente(s) y ${c.parciales} parcial(es).`;
-   if(/cuantos|cuantas|total|numero/.test(t)&&/entreg/.test(t)&&/complet/.test(t))return `Hay ${c.completas} entrega(s) completa(s).`;
-   if(/cuantos|cuantas|total|numero/.test(t)&&/entreg/.test(t))return `Hay ${c.entregas} entrega(s) registrada(s).`;
-   if(/existenc|inventario|stock|material/.test(t)&&/bajo|poco|minimo|agotad|falt/.test(t))return c.stock_bajo.length?`Materiales con stock bajo:\n• ${c.stock_bajo.join("\n• ")}`:"No hay materiales en o por debajo de su stock mínimo.";
-   if(/existenc|inventario|stock/.test(t)&&/total|cuantos|cuantas/.test(t))return `Hay ${c.existencias} existencias en total en el inventario.`;
-   if(/que|cuales|lista/.test(t)&&/grado/.test(t)&&/alumn|estudiant/.test(t)){return ["1ero","2do","3ero"].map(g=>`${g}: ${db.students.filter(x=>x.grade===g).length} alumno(s)`).join("\n");}
-   if(/pregunta|preguntas|puedo/.test(t))return "Puedes preguntarme por alumnos, grado y grupo, entregas, fechas, materiales recibidos o pendientes, inventario, tallas y reportes. También puedo responder preguntas generales cuando esté conectado el servicio de IA.";
-   if(!aiIsDataQuestion(q))return null;
-   const stop=new Set("que cual cuales quien quienes como cuando donde por para con del las los una uno unos unas hay tiene tienen son esta estan sobre desde acerca quiero saber dime muestra busca buscar encontrar informacion necesito puedes podria el la de y en a un se al cuantos cuantas cuanto cuanta total todos todas cada algun alguna registrado registrados actualmente".split(" "));
-   const tokens=t.split(/\s+/).filter(w=>w.length>2&&!stop.has(w));
-   if(!tokens.length)return null;
-   const matches=aiRecords().map(r=>{const text=aiNormalize(r.text);const hits=tokens.filter(w=>text.includes(w)).length;return {...r,hits}}).filter(r=>r.hits>0).sort((a,b)=>b.hits-a.hits).slice(0,8);
-   if(matches.length){return `Encontré estos resultados en los datos de la página:\n\n${matches.map((r,i)=>`${i+1}. [${r.type}] ${r.text}`).join("\n")}`;}
-   if(/alumn|estudiant|entreg|inventario|existencia|stock|material|grupo|grado|historial|reporte|pendient|parcial|complet|talla|paquete|uniforme|zapato|util|libro|registrad/.test(t))return "No encontré coincidencias en los datos actuales. Comprueba el nombre, grado, grupo, material o fecha; la búsqueda usa los registros guardados en este navegador.";
-   return null;
- }
- function aiPageDescription(){
-   return "Aplicación escolar Control de Materiales. Secciones: Inicio (resumen), Alumnos (nombre, grado, grupo), Nueva entrega (fecha, estado y materiales), Historial de entregas, Inventario (categoría, detalle, existencia y mínimo) y Reportes. La búsqueda de registros se hace localmente en el navegador.";
- }
- async function aiAsk(question){
-   if(!question.trim())return;
-   aiAddMessage(question,"user"); aiInput.value=""; aiSend.disabled=true;
-   const thinking=aiAddMessage("Buscando en la página…","bot");
-   try{
-     // Consultar primero la base local, sin enviar nombres de alumnos a un proveedor externo.
-     const localAnswer=aiLocalAnswer(question);
-     if(localAnswer){thinking.textContent=localAnswer;return;}
-     thinking.textContent="Preparando respuesta…";
-     const res=await fetch(AI_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question,context:aiContext(),pageInfo:aiPageDescription()})});
-     if(!res.ok){let detail="";try{detail=(await res.json()).error||""}catch{};throw new Error(detail||"El servicio de IA no está disponible.");}
-     const data=await res.json(); const answer=data.answer||data.response||data.message;
-     if(!answer)throw new Error("La respuesta del asistente está vacía.");
-     thinking.textContent=answer;
-   }catch(err){
-     const fallback=aiLocalAnswer(question);
-     thinking.textContent=fallback||"Puedo buscar en los registros locales de alumnos, entregas e inventario, pero las preguntas generales requieren que el servidor de IA esté instalado y conectado. Abre la página desde XAMPP/Apache y configura api/assistant.php con una clave de API en el servidor. No pongas esa clave en este archivo HTML.";
-     console.warn("Asistente IA:",err.message);
-   }finally{aiSend.disabled=false;aiInput.focus()}
- }
- aiLauncher.addEventListener("click",()=>aiPanel.classList.contains("show")?aiClosePanel():aiOpen());
- aiClose.addEventListener("click",aiClosePanel);
- aiForm.addEventListener("submit",e=>{e.preventDefault();aiAsk(aiInput.value)});
- document.querySelectorAll(".ai-suggestion").forEach(b=>b.addEventListener("click",()=>aiAsk(b.dataset.question)));
+}
+async function saveInventory() {
+  if (ocupado) return;
+  const cat = $("iCat").value, detail = $("iDetail").value, qty = Number($("iQty").value), min = Number($("iMin").value);
+  const extra = ($("iExtraWrap").style.display !== "none") ? $("iExtra").value : "";
+  if (!Number.isInteger(qty) || qty < 1) return showToast("La cantidad debe ser un número entero mayor que cero.");
+  if (!Number.isInteger(min) || min < 0) return showToast("El stock mínimo debe ser un número entero (0 o más).");
+  const keyDetail = (cat === "Zapatos" || cat === "Uniforme") ? `${detail}|${extra}` : detail;
+  ocupado = true;
+  try {
+    const same = findInventory(cat, keyDetail);
+    if (same) {
+      const { data, error } = await sb.from("inventario_materiales").update({ existencia: same.qty + qty, minimo: min }).eq("id", same.id).eq("existencia", same.qty).select("id");
+      if (error) return falla("No se pudo actualizar el inventario.", error);
+      if (!data || !data.length) { await cargarInventario(); renderAll(); return showToast("El inventario cambió mientras guardabas. Revisa las existencias e intenta de nuevo.") }
+    } else {
+      const { error } = await sb.from("inventario_materiales").insert({ categoria: cat, detalle: keyDetail, existencia: qty, minimo: min });
+      if (error) { if (error.code === "23505") { await cargarInventario(); renderAll() } return falla("No se pudo agregar el material al inventario.", error) }
+    }
+    await cargarInventario();
+    renderAll(); closeModal(); showToast(`Se agregaron ${qty} existencias de ${cat}.`);
+  } finally { ocupado = false }
+}
+function renderInventory() {
+  const counts = Object.fromEntries(materials.map(x => [x, 0]));
+  db.inventory.forEach(x => counts[x.cat] = (counts[x.cat] || 0) + Number(x.qty || 0));
+  $("inventoryGrid").innerHTML = materials.map(x => `<div class="card inventory-item"><h4>${x}</h4><div class="stock">${counts[x]} existencias</div></div>`).join("");
+  const search = ($("inventorySearch")?.value || "").toLowerCase().trim(), filter = $("inventoryFilter")?.value || "";
+  const rows = db.inventory.filter(x => (!filter || x.cat === filter) && (!search || x.cat.toLowerCase().includes(search) || inventoryLabel(x).toLowerCase().includes(search)));
+  $("inventoryTable").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.cat)}</td><td><b>${esc(inventoryLabel(x))}</b></td><td><b>${x.qty}</b></td><td>${x.min}</td><td>${x.qty <= x.min ? '<span class="badge pending">Stock bajo</span>' : '<span class="badge complete">Disponible</span>'}</td><td><button class="btn btn-danger" onclick="deleteInventory('${x.id}')">Eliminar</button></td></tr>`).join("") : `<tr><td colspan="6" class="empty">${db.inventory.length ? "No hay coincidencias." : "No hay materiales en inventario."}</td></tr>`;
+}
+async function deleteInventory(id) {
+  if (ocupado) return;
+  if (!confirm("¿Eliminar este material del inventario?")) return;
+  ocupado = true;
+  try {
+    const { error } = await sb.from("inventario_materiales").delete().eq("id", id);
+    if (error) return falla("No se pudo eliminar el material.", error);
+    db.inventory = db.inventory.filter(x => x.id !== id);
+    renderAll(); showToast("Material eliminado.");
+  } finally { ocupado = false }
+}
+
+// ===================== REPORTES =====================
+function renderReports() {
+  const complete = db.deliveries.filter(x => x.status === "Completa").length, partial = db.deliveries.filter(x => x.status === "Parcial").length, pending = db.deliveries.filter(x => x.status === "Pendiente").length;
+  $("repStudents").textContent = db.students.length; $("repComplete").textContent = complete; $("repPartial").textContent = partial; $("repPending").textContent = pending;
+  const counts = Object.fromEntries(materials.map(x => [x, 0])); db.deliveries.forEach(d => d.materials.forEach(m => { if (m in counts) counts[m]++ }));
+  $("materialReport").innerHTML = materials.map(x => `<p style="font-family:Arial;display:flex;justify-content:space-between;border-bottom:1px solid #eadfc9;padding:9px 0"><span>${x}</span><b>${counts[x]}</b></p>`).join("");
+  const grades = ["1ero", "2do", "3ero"]; $("gradeReport").innerHTML = grades.map(g => `<p style="font-family:Arial;display:flex;justify-content:space-between;border-bottom:1px solid #eadfc9;padding:9px 0"><span>${g}</span><b>${db.students.filter(x => x.grade === g).length}</b></p>`).join("");
+}
+
+// ===================== INICIO DE SESIÓN =====================
+function mostrarLogin(msg) {
+  $("loginScreen").classList.add("show");
+  if (msg !== undefined) $("loginError").textContent = msg;
+  $("loginPass").value = "";
+}
+function ocultarLogin() { $("loginScreen").classList.remove("show"); $("loginError").textContent = "" }
+function limpiarPantalla() {
+  // Al cerrar sesión no debe quedar ningún dato de alumnos en la pantalla.
+  db = { students: [], deliveries: [], inventory: [] };
+  atendiendo = null; closeModal(); aiClosePanel(); aiReset(); renderAll();
+  document.querySelectorAll(".page").forEach(x => x.classList.remove("active"));
+  $("page-inicio").classList.add("active");
+  document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("active", x.dataset.page === "inicio"));
+  $("pageTitle").textContent = "Inicio"; $("userEmail").textContent = "";
+}
+async function entrarConSesion() {
+  const { data: ok, error } = await sb.rpc("es_personal");
+  if (error || ok !== true) {
+    await sb.auth.signOut();
+    mostrarLogin(error ? "No se pudo verificar tu acceso. Revisa tu conexión e intenta de nuevo." : "Tu correo no está autorizado para usar esta página. Pide que lo agreguen al personal autorizado.");
+    return;
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  $("userEmail").textContent = session?.user?.email || "";
+  ocultarLogin();
+  showToast("Cargando datos…");
+  try { await cargarTodo(); renderAll(); showToast("Datos cargados.") }
+  catch (err) { falla("No se pudieron cargar los datos. Recarga la página.", err) }
+}
+$("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!sb) return;
+  const email = $("loginEmail").value.trim(), password = $("loginPass").value;
+  const btn = $("loginBtn"); btn.disabled = true; btn.textContent = "Entrando…"; $("loginError").textContent = "";
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      $("loginError").textContent = /invalid login/i.test(error.message) ? "Correo o contraseña incorrectos." : "No se pudo iniciar sesión. Intenta de nuevo.";
+      return;
+    }
+    await entrarConSesion();
+  } catch (err) {
+    console.error(err); $("loginError").textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
+  } finally { btn.disabled = false; btn.textContent = "Entrar" }
+});
+$("logoutBtn").addEventListener("click", async () => {
+  if (sb) await sb.auth.signOut();
+  limpiarPantalla(); mostrarLogin("");
+});
+async function iniciar() {
+  const logo = document.querySelector(".crest img"); if (logo) $("loginLogo").src = logo.src;
+  if (!window.supabase || !window.supabase.createClient) {
+    mostrarLogin("No se pudo cargar la librería de Supabase. Revisa tu conexión a internet y recarga la página.");
+    $("loginBtn").disabled = true; return;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb.auth.onAuthStateChange(evento => {
+    if (evento === "SIGNED_OUT") setTimeout(() => { limpiarPantalla(); mostrarLogin() }, 0);
+  });
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) await entrarConSesion(); else mostrarLogin("");
+  } catch (err) { console.error(err); mostrarLogin("") }
+}
+
+// ===================== ASISTENTE (un solo manejador) =====================
+// Pide los datos frescos a Supabase con la función consultar_asistente_ia
+// (solo responde si hay sesión de personal autorizado) y arma la respuesta aquí.
+const aiLauncher = $("aiLauncher"), aiPanel = $("aiPanel"), aiClose = $("aiClose"), aiForm = $("aiForm"), aiInput = $("aiInput"), aiMessages = $("aiMessages"), aiSend = $("aiSend");
+const aiBienvenida = aiMessages.innerHTML;
+function aiOpen() { aiPanel.classList.add("show"); setTimeout(() => aiInput.focus(), 80) }
+function aiClosePanel() { aiPanel.classList.remove("show") }
+function aiReset() { aiMessages.innerHTML = aiBienvenida; aiInput.value = "" }
+function aiAddMessage(text, type = "bot") {
+  const el = document.createElement("div"); el.className = `ai-msg ${type}`; el.textContent = text; aiMessages.appendChild(el); aiMessages.scrollTop = aiMessages.scrollHeight; return el;
+}
+function aiNormalize(value) { return String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9#\s-]/g, " ").replace(/\s+/g, " ").trim() }
+function aiPrepare(ctx) {
+  return {
+    alumnos: (ctx?.alumnos || []).map(x => ({ name: x.nombre, grade: x.grado, group: x.grupo })),
+    inventario: (ctx?.inventario || []).map(x => ({ label: x.articulo || "Material", qty: Number(x.existencia || 0), min: Number(x.minimo || 0) })),
+    entregas: (ctx?.entregas || []).map(x => ({ name: x.nombre, grade: x.grado, group: x.grupo, date: x.fecha, status: x.estado, materials: lista(x.materiales), pending: lista(x.pendientes) }))
+  };
+}
+function aiResumen(d) {
+  const pend = d.entregas.filter(x => x.status === "Pendiente").length, parc = d.entregas.filter(x => x.status === "Parcial").length;
+  return {
+    alumnos: d.alumnos.length, entregas: d.entregas.length, pendientes: pend + parc, solo_pendientes: pend, parciales: parc,
+    completas: d.entregas.filter(x => x.status === "Completa").length,
+    existencias: d.inventario.reduce((a, x) => a + x.qty, 0),
+    stock_bajo: d.inventario.filter(x => x.qty <= x.min).map(x => `${x.label} (${x.qty} disponibles, mínimo ${x.min})`)
+  };
+}
+function aiIsDataQuestion(q) { return /alumn|estudiant|entreg|inventario|existencia|stock|material|grupo|grado|historial|reporte|pendient|parcial|complet|talla|paquete|uniforme|zapato|util|libro|registrad|busca|buscar|quien|quienes|recibio|recibieron|fecha|cuantos|cuantas|cuanto|cuanta/.test(aiNormalize(q)) }
+function aiRecords(d) {
+  const clave = (n, g, p) => `${n}|${g}|${p}`, conteo = new Map();
+  d.entregas.forEach(e => { const k = clave(e.name, e.grade, e.group); conteo.set(k, (conteo.get(k) || 0) + 1) });
+  const records = [];
+  d.alumnos.forEach(s => records.push({ type: "Alumno", text: `Alumno ${s.name}, grado ${s.grade}, grupo ${s.group}, total de entregas ${conteo.get(clave(s.name, s.grade, s.group)) || 0}` }));
+  d.entregas.forEach(e => records.push({ type: "Entrega", text: `Entrega de ${e.name}, grado ${e.grade}, grupo ${e.group}, fecha ${e.date || "sin fecha"}, estado ${e.status}, materiales ${e.materials.join(", ") || "ninguno"}, pendientes ${e.pending.join(", ") || "ninguno"}` }));
+  d.inventario.forEach(x => records.push({ type: "Inventario", text: `Inventario ${x.label}, existencia ${x.qty}, mínimo ${x.min}, estado ${x.qty <= x.min ? "stock bajo" : "disponible"}` }));
+  return records;
+}
+function aiAnswer(q, d) {
+  const t = aiNormalize(q), c = aiResumen(d);
+  let m = t.match(/(?:alumnos?|estudiantes?).{0,35}?(1ero|primero|2do|segundo|3ero|tercero)(?:.{0,20}?(?:grupo|salon)\s*([a-i]))?/);
+  if (m) { const g = ({ primero: "1ero", segundo: "2do", tercero: "3ero" })[m[1]] || m[1]; const group = m[2]?.toUpperCase(); const n = d.alumnos.filter(x => x.grade === g && (!group || x.group === group)).length; return `Hay ${n} alumno(s) de ${g}${group ? ` del grupo ${group}` : ""}.` }
+  if (/cuantos|cuantas|total|numero/.test(t) && /alumn|estudiant|registrad/.test(t)) return `Actualmente hay ${c.alumnos} alumno(s) registrado(s).`;
+  if (/cuantos|cuantas|total|numero/.test(t) && /entreg/.test(t) && /pendient|parcial/.test(t)) return `Hay ${c.pendientes} entrega(s) pendiente(s) o parcial(es): ${c.solo_pendientes} pendiente(s) y ${c.parciales} parcial(es).`;
+  if (/cuantos|cuantas|total|numero/.test(t) && /entreg/.test(t) && /complet/.test(t)) return `Hay ${c.completas} entrega(s) completa(s).`;
+  if (/cuantos|cuantas|total|numero/.test(t) && /entreg/.test(t)) return `Hay ${c.entregas} entrega(s) registrada(s).`;
+  if (/existenc|inventario|stock|material/.test(t) && /bajo|poco|minimo|agotad|falt/.test(t)) return c.stock_bajo.length ? `Materiales con stock bajo:\n• ${c.stock_bajo.join("\n• ")}` : "No hay materiales en o por debajo de su stock mínimo.";
+  if (/existenc|inventario|stock/.test(t) && /total|cuantos|cuantas/.test(t)) return `Hay ${c.existencias} existencias en total en el inventario.`;
+  if (/que|cuales|lista/.test(t) && /grado/.test(t) && /alumn|estudiant/.test(t)) return ["1ero", "2do", "3ero"].map(g => `${g}: ${d.alumnos.filter(x => x.grade === g).length} alumno(s)`).join("\n");
+  if (/pregunta|preguntas|puedo/.test(t)) return "Puedes preguntarme por alumnos, grado y grupo, entregas, fechas, materiales recibidos o pendientes, inventario, tallas y reportes.";
+  if (!aiIsDataQuestion(q)) return "Por ahora solo puedo responder sobre los alumnos, las entregas y el inventario. Prueba con: “¿Cuántos alumnos hay registrados?”, “¿Qué materiales tienen poco inventario?” o “¿Cuántas entregas están pendientes?”.";
+  const stop = new Set("que cual cuales quien quienes como cuando donde por para con del las los una uno unos unas hay tiene tienen son esta estan sobre desde acerca quiero saber dime muestra busca buscar encontrar informacion necesito puedes podria el la de y en a un se al cuantos cuantas cuanto cuanta total todos todas cada algun alguna registrado registrados actualmente".split(" "));
+  const tokens = t.split(/\s+/).filter(w => w.length > 2 && !stop.has(w));
+  if (!tokens.length) return "¿Puedes darme más detalle? Por ejemplo, el nombre de un alumno, un grupo o un material.";
+  const matches = aiRecords(d).map(r => { const text = aiNormalize(r.text); const hits = tokens.filter(w => text.includes(w)).length; return { ...r, hits } }).filter(r => r.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, 8);
+  if (matches.length) return `Encontré estos resultados en los registros:\n\n${matches.map((r, i) => `${i + 1}. [${r.type}] ${r.text}`).join("\n")}`;
+  return "No encontré coincidencias en los registros. Comprueba el nombre, grado, grupo, material o fecha.";
+}
+async function aiAsk(question) {
+  if (!question.trim()) return;
+  aiAddMessage(question, "user"); aiInput.value = ""; aiSend.disabled = true;
+  const pensando = aiAddMessage("Buscando en los registros…", "bot");
+  try {
+    const { data, error } = await sb.rpc("consultar_asistente_ia", { prompt_usuario: question });
+    if (error) throw error;
+    pensando.textContent = aiAnswer(question, aiPrepare(data?.contexto_sistema));
+  } catch (err) {
+    console.warn("Asistente:", err.message || err);
+    pensando.textContent = "No pude consultar la base de datos en este momento. Revisa tu conexión y que tu sesión siga iniciada.";
+  } finally { aiSend.disabled = false; aiInput.focus() }
+}
+aiLauncher.addEventListener("click", () => aiPanel.classList.contains("show") ? aiClosePanel() : aiOpen());
+aiClose.addEventListener("click", aiClosePanel);
+aiForm.addEventListener("submit", e => { e.preventDefault(); aiAsk(aiInput.value) });
+document.querySelectorAll(".ai-suggestion").forEach(b => b.addEventListener("click", () => aiAsk(b.dataset.question)));
+
+// ===================== ARRANQUE =====================
+renderAll(); renderMaterialDetails();
+iniciar();
+
 </script>
- 
+
 <footer class="authors-footer" aria-label="Autoría del proyecto">
   <div class="authors-title">Desarrollo del proyecto</div>
   <div class="authors-line">
@@ -619,156 +857,5 @@ renderAll();renderMaterialDetails();
   </div>
 </footer>
 
-
-<script>
-// 1. Aseguramos la conexión con tus credenciales de Supabase
-// Si ya las tienes inicializadas más arriba en tu archivo, puedes omitir estas dos líneas
-const SUPABASE_URL = "https://hpcbswwtfwwbjgrglzzk.supabase.co/rest/v1/";
-const SUPABASE_ANON_KEY = "sb_publishable_tHCAejR8H0hCMGlmVlSO7Q_M0g2E5s3";
-
-// Inicializamos el cliente si no se ha creado antes
-if (typeof supabase === 'undefined' || !supabase.auth) {
-    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
-
-// 2. Esperamos a que la página cargue por completo
-document.addEventListener('DOMContentLoaded', () => {
-    const launcher = document.querySelector('.ai-launcher');
-    const panel = document.querySelector('.ai-panel');
-    
-    if (panel) {
-        const inputChat = panel.querySelector('input') || panel.querySelector('[type="text"]');
-        const botonEnviar = panel.querySelector('button:not(.close)') || panel.querySelector('.send-btn') || document.querySelector('.ai-panel button'); // Ajustado para capturar tu botón 'Enviar' dorado
-        const contenedorMensajes = panel.querySelector('.messages') || panel.querySelector('div:nth-child(2)');
-
-        // Función principal para procesar y enviar el mensaje a Supabase
-        async function procesarChatEscolar() {
-            const textoUsuario = inputChat.value.trim();
-            if (!textoUsuario) return;
-
-            // A) Pintamos el mensaje del usuario en tu chat
-            agregarBurbujaTexto(textoUsuario, 'usuario');
-            inputChat.value = ''; // Limpiamos la caja
-
-            // B) Mostramos mensaje de espera temporal
-            const burbujaEspera = agregarBurbujaTexto('Buscando en los registros escolares...', 'sistema-espera');
-
-            try {
-                // C) Llamamos de forma directa a la función RPC 'consultar_asistente_ia' de tu Supabase
-                const { data, error } = await supabase.rpc('consultar_asistente_ia', {
-                    prompt_usuario: textoUsuario
-                });
-
-                if (error) throw error;
-
-                // D) Analizamos la data fresca devuelta por el motor de la base de datos
-                const respuestaFinal = analizarDatosEscolares(textoUsuario, data.contexto_sistema);
-
-                // E) Quitamos el indicador de carga y mostramos la respuesta final
-                burbujaEspera.remove();
-                agregarBurbujaTexto(respuestaFinal, 'asistente');
-
-            } catch (err) {
-                console.error("Error en la conexión con el asistente:", err);
-                burbujaEspera.remove();
-                agregarBurbujaTexto("Lo siento, no pude conectarme a la base de datos para consultar esa información.", 'error');
-            }
-        }
-
-        // Motor lógico del asistente que interpreta los datos reales de tus 3 tablas
-        function analizarDatosEscolares(prompt, datos) {
-            const query = prompt.toLowerCase();
-
-            // Consulta de Inventario / Almacén / Existencias
-            if (query.includes('inventario') || query.includes('stock') || query.includes('almacen') || query.includes('existencia') || query.includes('bajo')) {
-                if (!datos.inventario || datos.inventario.length === 0) {
-                    return "📋 El almacén se encuentra vacío. No hay materiales registrados todavía.";
-                }
-                let lista = "📋 **Inventario de Materiales Actual:**\n\n";
-                datos.inventario.forEach(item => {
-                    lista += `• **${item.articulo}**: ${item.existencia} piezas en existencia.\n`;
-                });
-                return lista;
-            }
-
-            // Consulta de Alumnos Registrados
-            if (query.includes('alumno') || query.includes('estudiante') || query.includes('cuantos') || query.includes('registrados')) {
-                const total = datos.alumnos ? datos.alumnos.length : 0;
-                return `🏫 Actualmente el padrón escolar cuenta con **${total} alumnos registrados** en el sistema.`;
-            }
-
-            // Consulta de Entregas y Materiales Pendientes
-            if (query.includes('pendiente') || query.includes('entrega') || query.includes('deben') || query.includes('rezago')) {
-                const pendientes = datos.entregas ? datos.entregas.filter(e => e.estado.toLowerCase() === 'pendiente') : [];
-                if (pendientes.length === 0) {
-                    return "✅ ¡Excelente! No se encuentran entregas marcadas como 'Pendiente' en el sistema escolar.";
-                }
-                let listaPendientes = `⚠️ **Se encontraron ${pendientes.length} entregas pendientes:**\n\n`;
-                pendientes.forEach(e => {
-                    listaPendientes += `• **${e.nombre}** (${e.grado}° "${e.grupo}"): Tiene pendiente la entrega de: _${e.materiales || 'Materiales generales'}_.\n`;
-                });
-                return listaPendientes;
-            }
-
-            // Saludo o respuesta genérica instructiva
-            return "¡Hola! 👋 Soy tu asistente escolar. Puedo ayudarte a consultar el estado de la escuela en tiempo real. Intenta preguntarme cosas como:\n\n" +
-                   "• _¿Cuántos alumnos hay registrados?_\n" +
-                   "• _¿Cuál es el stock actual del inventario?_\n" +
-                   "• _Muéstrame las entregas pendientes_";
-        }
-
-        // Función auxiliar para renderizar los mensajes respetando la estructura interna del chat
-        function agregarBurbujaTexto(texto, remitente) {
-            const p = document.createElement('p');
-            p.style.margin = '8px 0';
-            p.style.padding = '10px 14px';
-            p.style.borderRadius = '12px';
-            p.style.fontSize = '14px';
-            p.style.lineHeight = '1.4';
-            p.style.fontFamily = 'Arial, sans-serif';
-            
-            // Aplicamos estilos limpios que combinan con tu paleta de colores crema y azul
-            if (remitente === 'usuario') {
-                p.style.background = '#173b63';
-                p.style.color = '#fff';
-                p.style.alignSelf = 'flex-end';
-                p.style.marginLeft = '20px';
-            } else {
-                p.style.background = '#eee4cf';
-                p.style.color = '#263442';
-                p.style.alignSelf = 'flex-start';
-                p.style.marginRight = '20px';
-            }
-
-            // Cambiar saltos de línea por <br> para conservar el orden estructurado de las listas
-            p.innerHTML = texto.replace(/\n/g, '<br>');
-            
-            if (contenedorMensajes) {
-                contenedorMensajes.appendChild(p);
-                contenedorMensajes.scrollTop = contenedorMensajes.scrollHeight;
-            }
-            return p;
-        }
-
-        // Buscamos tu botón de enviar "dorado" específico
-        const botonEnviarReal = Array.from(panel.querySelectorAll('button')).find(b => b.textContent.trim() === 'Enviar') || botonEnviar;
-
-        // Evento para el botón de enviar
-        if (botonEnviarReal) botonEnviarReal.addEventListener('click', procesarChatEscolar);
-
-        // Evento para enviar al presionar la tecla Enter
-        if (inputChat) {
-            inputChat.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    procesarChatEscolar();
-                }
-            });
-        }
-    }
-});
-
-</script>
-
 </body>
- </html>
+</html>

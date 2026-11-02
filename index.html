@@ -3,6 +3,14 @@
  <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <meta name="theme-color" content="#173b63">
+ <meta name="mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-title" content="Materiales">
+ <link rel="manifest" href="manifest.webmanifest">
+ <link rel="icon" type="image/png" href="icon-192.png">
+ <link rel="apple-touch-icon" href="icon-192.png">
+
  <title>Control de Materiales | Escuela Martín José Urrutia Malagón</title>
  <style>
  :root{
@@ -838,6 +846,23 @@ aiLauncher.addEventListener("click", () => aiPanel.classList.contains("show") ? 
 aiClose.addEventListener("click", aiClosePanel);
 aiForm.addEventListener("submit", e => { e.preventDefault(); aiAsk(aiInput.value) });
 document.querySelectorAll(".ai-suggestion").forEach(b => b.addEventListener("click", () => aiAsk(b.dataset.question)));
+
+// ===================== SINCRONIZACIÓN ENTRE DISPOSITIVOS =====================
+// Los datos viven en Supabase, así que cualquier dispositivo ve lo mismo.
+// Para ver los cambios de otro dispositivo sin recargar, la página se actualiza
+// sola cada 30 segundos y cada vez que vuelves a abrirla.
+async function refrescarDatos() {
+  if (ocupado || !sb || document.hidden) return;
+  if ($("loginScreen").classList.contains("show") || $("modal").classList.contains("show")) return;
+  try { await cargarTodo(); renderAll() } catch (err) { console.warn("No se pudo actualizar:", err.message || err) }
+}
+setInterval(refrescarDatos, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refrescarDatos() });
+
+// ===================== APP INSTALABLE (PWA) =====================
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(e => console.warn("sw:", e)));
+}
 
 // ===================== ARRANQUE =====================
 renderAll(); renderMaterialDetails();
